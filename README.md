@@ -54,6 +54,8 @@ The content script sends a bounded snapshot: URL, title, meta and link tags, hea
 
 ## Privacy
 
+The store policy is [`privacy.html`](privacy.html).
+
 - No telemetry, analytics, remote upload, or API key.
 - No request to Google Rich Results Test, robots.txt, link destinations, or image files during the audit.
 - Keyword text stays in the extension. It is sent to `chrome.storage.local` only if you ask to remember it.
