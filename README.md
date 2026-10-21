@@ -1,8 +1,10 @@
-# JSON-LD Schema Inspector
+# SEO Inspector
 
-A Manifest V3 browser extension that inspects JSON-LD on the current page, lists typed entities, and runs local validation. Parsing and validation stay in the browser. The extension does not upload page data, call an API, or use an account.
+A Manifest V3 extension that audits the current page in the browser. It covers on-page metadata, keywords, headings, social tags, links, images, indexability signals, technical and accessibility hints, and JSON-LD structured data.
 
-It runs in Chrome and other Chromium browsers that support Manifest V3, the side panel, and ES module service workers. The manifest sets `minimum_chrome_version` to **116**. Firefox is not a target: its side-panel and extension APIs differ.
+Nothing is uploaded. There is no SEO API, telemetry, or account. The score is an internal diagnostic, not a Google ranking score.
+
+Chrome and other Chromium browsers with Manifest V3, the side panel, and ES module service workers are supported. `minimum_chrome_version` is **116**. Firefox is not a target.
 
 ## Install and build
 
@@ -10,6 +12,7 @@ It runs in Chrome and other Chromium browsers that support Manifest V3, the side
 npm install
 npm run typecheck
 npm test
+npm run lint
 npm run build
 ```
 
@@ -17,106 +20,159 @@ npm run build
 
 Load the extension:
 
-1. Open the browser's extensions page (`chrome://extensions`, `edge://extensions`, or the equivalent).
+1. Open `chrome://extensions` or `edge://extensions`.
 2. Turn on **Developer mode**.
 3. Choose **Load unpacked**.
-4. Select the `dist/` directory produced by `npm run build`.
+4. Select the `dist/` directory.
 
-Reload the extension after each production build. If a tab was already open, reload that tab once so the content script is attached.
+Reload the extension after each production build. Reload an already-open tab once so the content script attaches.
 
 ## How to use it
 
 1. Open an ordinary `http` or `https` page.
-2. Click the toolbar icon for a compact popup, or use **Open side panel** for a wider tree.
-3. **Refresh** reads the page again. The content script also watches for JSON-LD scripts added, removed, or edited, and pushes an update after a short debounce.
-4. **Schemas** lists every object with `@type`, including nodes inside `@graph`, arrays, and nested properties such as `author` or `hiringOrganization`.
-5. **Validation** lists syntax, JSON-LD structure, Schema.org subset, Google rich-result, and recommendation findings. Filter by severity or category.
-6. **Raw JSON** shows each original script, including scripts that failed to parse.
-7. **Export** downloads a JSON report with the page URL and title, extraction time, raw scripts, parsed JSON when parsing succeeded, entities, and findings.
+2. Click the toolbar icon. The popup shows one audit section at a time.
+3. **Open side panel** for the full section list.
+4. **Refresh** reads the page again. The content script also watches relevant DOM edits and pushes an update after a short debounce when the collected snapshot or JSON-LD actually changed.
+5. Use the section list for Overview, Metadata, Keywords, Headings, Social, Links, Images, Indexability, Structured data, Technical SEO, Content analysis, and Recommendations.
+6. **Highlight** scrolls to a heading, link, or image and draws an outline. It does not run page script.
+7. **Export JSON** downloads the raw JSON-LD, parsed data, audit findings, score breakdown, and checks that could not be evaluated. **Export text** downloads a plain-language report.
 
-Restricted pages (`chrome://`, `edge://`, `about:`, the Chrome Web Store, and similar) show an explanation instead of a stack trace. The extension reads only the top frame, not iframes or closed shadow roots.
+Restricted pages (`chrome://`, `edge://`, `about:`, the Chrome Web Store, and similar) show an explanation. The extension reads the top frame only, not iframes or closed shadow roots.
 
 ## Permissions
 
 | Permission | Why it is required |
 | --- | --- |
-| `host_permissions` for `http://*/*` and `https://*/*` | The content script must read `script[type="application/ld+json"]` on ordinary web pages, including pages opened before the extension was installed. It does not request access to `file:`, browser settings, or extension pages. |
-| `scripting` | Re-injects the content script when a matching tab was open before installation or the script is missing. |
-| `activeTab` | Complements the toolbar action when the user invokes the extension. |
-| `tabs` | Reads the active tab URL and title so the popup and side panel can follow tab switches and explain restricted pages. |
-| `sidePanel` | Opens the persistent inspector beside the page. |
+| `host_permissions` for `http://*/*` and `https://*/*` | The content script must read the current page, including tabs opened before install. It does not request `file:`, browser settings, or extension pages. |
+| `scripting` | Re-injects the content script when it is missing. |
+| `activeTab` | Complements the toolbar action. |
+| `tabs` | Reads the active tab URL and title, follows tab switches, and explains restricted pages. |
+| `sidePanel` | Opens the persistent audit beside the page. |
+| `storage` | Optionally remembers the primary keyword, secondary keywords, and brand on this device when **Remember on this device** is checked. Unchecking it deletes that saved value. |
 
-The content script sends script text, element ids, the page URL, the document title, and an extraction timestamp. It does not send the rest of the page HTML.
+The content script sends a bounded snapshot: URL, title, meta and link tags, headings, a capped image and anchor inventory, landmark and form counts, and visible text up to the configured character limit. It also sends JSON-LD script text. It does not send the full HTML document.
 
 ## Privacy
 
-- No telemetry, analytics, or remote upload.
-- No backend, database, or API key.
-- No execution of scripts found in the page.
-- JSON-LD is shown as text through React. It is not turned into HTML.
-- The popup and side panel load their own packaged files. A network log may show `chrome-extension://` requests for those files. Page JSON-LD is not part of those requests.
-- A script longer than 2,000,000 characters is truncated. The UI and the export say so, and they include the original length plus the retained prefix. Shorter scripts are kept in full, even when the JSON is invalid.
+- No telemetry, analytics, remote upload, or API key.
+- No request to Google Rich Results Test, robots.txt, link destinations, or image files during the audit.
+- Keyword text stays in the extension. It is sent to `chrome.storage.local` only if you ask to remember it.
+- Extracted text is rendered as text. Page HTML is not executed and is not assigned to `innerHTML`.
+- A social preview image loads only after **Show preview image**.
+- Highlighting uses a fixed outline element inserted by the content script. It does not evaluate a selector from the page.
+- The popup and side panel load their own packaged files. A network log may show `chrome-extension://` requests for those files.
 
-Limits live in `src/shared/limits.ts`.
+Limits live in `src/shared/limits.ts`. When a list or text extract is capped, the audit says so. Omitted items are not marked as passed.
 
-## Validation methodology
+## Audit methodology
 
-Findings are local diagnostics. They are grouped so a syntax error is not presented as a Google ranking failure:
+Findings use four severities:
+
+| Severity | Meaning |
+| --- | --- |
+| Error | The page is missing something basic, such as a document title, or JSON-LD is invalid. |
+| Warning | A likely problem or an important gap, such as a missing description, `noindex`, or an image with no `alt` attribute. |
+| Info | Context, a heuristic, or a display suggestion. Info does not change the score. |
+| Passed | The check ran and did not fail. Passed checks are counted separately. |
+
+A check that cannot be evaluated is listed under **Could not evaluate**. It is not passed and it is not failed. That includes robots.txt, `X-Robots-Tag`, redirect chains, response headers, image byte size, whether a link is broken, cross-page duplicate titles, hreflang return links, Core Web Vitals, and WCAG conformance.
+
+### Score
+
+The score starts at 100. Each rule id deducts once, using its strongest severity: error 10, warning 3, info 0. Fifty images missing `alt` are one warning deduction, and the finding list still shows the instances up to a per-rule cap. Disabled rules are excluded. The overview lists the deductions and lets you turn a rule off for the current session.
+
+Improving the score does not guarantee a ranking change. The label in the product says this is not a Google ranking score.
+
+### What is a requirement, a practice, or a heuristic
+
+| Source | How this extension uses it |
+| --- | --- |
+| [Google title links](https://developers.google.com/search/docs/appearance/title-link) | A missing title is an error. Character length is display guidance (about 15–60), not a ranking rule. |
+| [Google snippets](https://developers.google.com/search/docs/appearance/snippet) | A missing meta description is a warning because Google may write the snippet. Length is guidance (about 50–160), not a requirement. |
+| [Robots meta tag](https://developers.google.com/search/docs/crawling-indexing/robots-meta-tag) | `noindex` is reported as a directive. The extension does not know if the URL is indexed. |
+| [Canonical URLs](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls) | A canonical that differs from the current URL is informational. It may be intentional. |
+| [Localized versions](https://developers.google.com/search/docs/specialty/international/localized-versions) | `hreflang` codes are checked in this document. Return links on other URLs are not fetched. |
+| [Google Images](https://developers.google.com/search/docs/appearance/google-images) | Missing `alt` is a warning. Empty `alt` is decorative and is not an error. File size is unknown. |
+| [Qualify outbound links](https://developers.google.com/search/docs/crawling-indexing/qualify-outbound-links) | `nofollow`, `sponsored`, and `ugc` are described and are not errors. |
+| [Open Graph](https://ogp.me/) | Missing `og:title`, `og:description`, `og:type`, `og:url`, or `og:image` is a sharing warning, not a Google Search requirement. |
+| Twitter/X cards | Missing `twitter:*` tags are informational. The preview falls back to Open Graph when those tags are empty. Platform support changes, so this is not a full card validator. |
+| JSON-LD | See the validation table below. Schema.org coverage is a subset. Google rich-result checks were last reviewed **2026-10-01**. |
+
+On-page rules in this extension were last reviewed **2026-10-21**.
+
+Keyword frequency is occurrences divided by analyzed words. It is not a density target. Phrase matching lowercases text, treats punctuation as a space, and requires a word boundary. The analyzed text is either the `main` region, or the body minus navigation, footer, and aside when there is no `main`. Scripts, styles, hidden content, form controls, and SVG are excluded. This is not a perfect main-content detector. The included text is visible in Content analysis.
+
+## JSON-LD validation
+
+Structured data still uses the original parser and rule modules. Findings are also summarized in the audit.
 
 | Category | What it means |
 | --- | --- |
-| JSON syntax | The script is empty, truncated, not valid JSON, or a primitive root such as `null` or a string. |
-| JSON-LD structure | Missing or unfamiliar `@context`, a broken `@graph` or `@list`, a root node with no `@type`, or duplicate `@id` values. An unfamiliar context is informational. Valid JSON-LD that this tool does not recognize is not marked invalid for that reason alone. |
-| Schema.org | A **subset** of Schema.org types and properties shipped with the extension. Unknown types and unknown properties are informational. This is not complete Schema.org conformance. |
-| Google rich results | Versioned checks for JobPosting, Product snippets, Article / NewsArticle / BlogPosting, BreadcrumbList, Event, Recipe, VideoObject, Organization logo, LocalBusiness (and included subtypes such as Restaurant and Dentist), and FAQPage. Required gaps are errors. Recommended gaps are warnings. FAQ eligibility and Top stories policy are informational. |
-| SEO recommendation | Notes such as relative URLs on `image` or `logo`. These are not errors. |
+| JSON syntax | The script is empty, truncated, not valid JSON, or a primitive root. |
+| JSON-LD structure | Missing or unfamiliar `@context`, a broken `@graph` or `@list`, a root node with no `@type`, or duplicate `@id` values. |
+| Schema.org | A subset of types and properties shipped with the extension. Unknown types and properties are informational. This is not complete Schema.org conformance. |
+| Google rich results | Local checks for JobPosting, Product snippets, Article, BreadcrumbList, Event, Recipe, VideoObject, Organization logo, LocalBusiness, and FAQPage. Quiet checks do not mean the page is eligible. |
+| SEO recommendation | Notes such as relative URLs on `image` or `logo`. |
 
-Google rules were last checked against Google Search Central documentation on **2026-10-01**. Google changes rich-result requirements. Each Google finding links to the documentation used for that feature.
+The [Google Rich Results Test](https://search.google.com/test/rich-results) is linked from the validation panel. It is not called.
 
-The extension does **not** claim that a page is eligible for a rich result when these checks are quiet. Use the [Google Rich Results Test](https://search.google.com/test/rich-results) for Google's own result. That tool is only linked. It is not called from the extension.
-
-Missing recommended properties are warnings or notes, not errors. Rules run only for the schema types they name. A `WebPage` is not checked as a `JobPosting`.
-
-## What the content script watches
-
-It collects every main-frame `script` whose MIME type is `application/ld+json`, including a charset parameter. For each script it records the index, element id, raw text, parse status, and parse error when there is one. Large scripts are not parsed on the page thread; the extension page parses them, in a worker when the total text is large, so the site and the panel stay responsive.
-
-Mutation observation is debounced. Unrelated DOM edits do not re-send data. Identical script text is not sent again.
-
-## Project layout
+## Architecture
 
 ```text
-src/
-  background/service-worker.ts
-  content/content-script.ts
-  parser/
-  validation/
-  components/
-  hooks/
-  workers/analyze.worker.ts
-  App.tsx
-public/manifest.json
-popup.html
-sidepanel.html
+content script
+  collect JSON-LD + page snapshot
+  debounce mutations, publish only when the signature changes
+        ↓ chrome.runtime message
+popup / side panel
+  JSON-LD analysis (worker when the scripts are large)
+  SEO rules on the snapshot (pure functions, no network)
+        ↓
+sections, score, JSON export, text report
 ```
+
+Extraction, rules, and React UI are separate. `src/seo/` does not render HTML. `src/validation/` is unchanged as the JSON-LD engine. `src/content/collect-page.ts` only collects evidence.
 
 Popup and side panel render the same `App` with a `mode` prop.
 
-## Tests
+## Add a rule
 
-Vitest covers parsing, `@graph`, nested entities, multiple `@type` values, invalid JSON, empty scripts, duplicate ids, Google rules, search, export of broken raw JSON, truncation, mutation filtering, and safe rendering of untrusted strings.
+1. Add a pure function in the relevant `src/seo/` module that returns findings, passed checks, or an unavailable check.
+2. Give it a stable `ruleId`, a severity, a kind (`technical`, `accessibility`, `best-practice`, or `optional`), evidence, and a remediation sentence that does not claim a ranking penalty.
+3. Call it from `auditPage` in `src/seo/engine.ts`.
+4. Add a unit test that builds a `PageSnapshot` with `tests/seo-fixture.ts` and does not need a browser.
+5. If the rule depends on a new DOM field, add that field in `collect-page.ts` and cover it with `tests/seo-snapshot.test.ts`.
+
+A new category needs a value on `AuditCategory`, a label, a section id if it should appear in the nav, and a branch in `AuditView`.
+
+## Tests
 
 ```bash
 npm test
 npm run lint
 ```
 
+Vitest covers JSON-LD parsing and validation, metadata, keywords, Open Graph and Twitter fallback, headings, images, links, indexability, score deduplication, export, snapshot extraction, truncation, and safe rendering.
+
+## Known limitations
+
+- One page only. No crawl, no site-wide duplicate detection, no robots.txt, no redirect chain, no response headers.
+- Links are not fetched, so none are reported as broken. Images are not downloaded, so none are reported as large in bytes.
+- `X-Robots-Tag` is unavailable. A `noindex` meta tag is a directive, not proof the URL is absent from the index.
+- Hidden detection uses the `hidden` attribute, `aria-hidden`, inline style, and computed `display` / `visibility`. It can miss headings hidden only by a class animation.
+- Viewport position for lazy images is unknown when layout boxes are empty.
+- Core Web Vitals are not measured. Accessibility checks are not a WCAG audit.
+- Content quality, expertise, originality, and search intent are not judged.
+- Shadow DOM and iframes are not scanned.
+- The social preview does not execute markup from the page. Image dimensions that are not in meta tags stay unknown.
+- Keyword memory uses `chrome.storage.local` only after you opt in.
+
 ## Manual check after loading `dist/`
 
-- A page with no JSON-LD shows zero scripts and an empty Schemas state.
-- A page with two JSON-LD scripts lists both, including one that is invalid JSON, and export still contains that raw text.
-- Expanding a nested object in Schemas shows and hides children.
-- Search narrows entities and findings.
-- The side panel opens from the popup and shows the same page.
+- A normal page shows a score, and the overview numbers match the findings.
+- A page with `noindex` says indexing status is unknown.
+- An image with no `alt` attribute is a warning. An image with `alt=""` is not an error.
+- Structured data still lists invalid JSON-LD raw text in export.
+- Highlight scrolls to a heading on the page.
+- Remembering a keyword survives closing the popup, and clearing the checkbox removes it.
 - A `chrome://` tab explains that the page cannot be inspected.
-- The browser network panel shows no requests from the extension to an analytics or API host while you inspect a page.
+- The network panel shows no analytics or SEO API calls while you inspect a page.

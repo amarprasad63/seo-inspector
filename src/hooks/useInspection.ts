@@ -91,7 +91,7 @@ export async function openSidePanelForTab(tabId: number): Promise<void> {
 
 export function useInspection(): InspectionState {
   const [phase, setPhase] = useState<InspectionPhase>('loading');
-  const [detail, setDetail] = useState('Reading JSON-LD from this page.');
+  const [detail, setDetail] = useState('Reading this page.');
   const [tabUrl, setTabUrl] = useState('');
   const [tabTitle, setTabTitle] = useState('');
   const [extraction, setExtraction] = useState<PageExtraction | null>(null);
@@ -118,7 +118,7 @@ export function useInspection(): InspectionState {
     }
     if (!quiet) {
       setPhase('loading');
-      setDetail('Reading JSON-LD from this page.');
+      setDetail('Reading this page.');
     }
     try {
       const payload = await requestExtraction(id);

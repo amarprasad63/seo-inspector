@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "JSON-LD Schema Inspector",
-  "version": "1.0.0",
-  "description": "Inspect, analyze, and validate JSON-LD structured data on the current page. All processing stays in the browser.",
+  "name": "SEO Inspector",
+  "version": "1.1.0",
+  "description": "Inspect on-page SEO and JSON-LD structured data on the current page. All processing stays in the browser.",
   "minimum_chrome_version": "116",
   "action": {
-    "default_title": "JSON-LD Schema Inspector",
+    "default_title": "SEO Inspector",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -35,7 +35,7 @@
       "all_frames": false
     }
   ],
-  "permissions": ["activeTab", "scripting", "sidePanel", "tabs"],
+  "permissions": ["activeTab", "scripting", "sidePanel", "storage", "tabs"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"

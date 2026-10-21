@@ -101,6 +101,15 @@ a { color: var(--accent); }
   padding: 8px 12px 0;
 }
 
+.metrics-wrap {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0 0 8px;
+}
+
+.mode-sidepanel .metrics-wrap {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .metric {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -108,7 +117,7 @@ a { color: var(--accent); }
   padding: 6px 4px;
   text-align: left;
 }
-.metric-value { display: block; font-size: 16px; font-weight: 700; }
+.metric-value { display: block; font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .metric-label { color: var(--text-dim); font-size: 11px; }
 .metric-error .metric-value { color: var(--error); }
 .metric-warning .metric-value { color: var(--warning); }
@@ -283,6 +292,29 @@ a { color: var(--accent); }
 
 .spin { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+.section-nav, .section-select { padding: 8px 12px 0; }
+.section-select { display: flex; flex-direction: column; gap: 4px; color: var(--text-dim); }
+.section-select select, .keyword-form input, .panel select {
+  width: 100%;
+  margin-top: 4px;
+  background: var(--bg-elev);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+}
+.keyword-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.keyword-form label, .remember { display: flex; flex-direction: column; gap: 4px; }
+.remember { flex-direction: row; align-items: center; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th, .data-table td { border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; padding: 4px; }
+.table-wrap { overflow: auto; }
+.plain-list, .outline { margin: 8px 0; padding-left: 18px; }
+.preview-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: var(--bg-elev); margin-bottom: 8px; }
+.preview-card h2 { margin: 4px 0; font-size: 16px; }
+.preview-card img { max-width: 100%; border-radius: 8px; }
+.section-nav .filters { padding: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   .spin { animation: none; }

@@ -1,4 +1,4 @@
-import { Download, PanelRightOpen, RefreshCw } from 'lucide-react';
+import { Download, FileText, PanelRightOpen, RefreshCw } from 'lucide-react';
 
 interface HeaderProps {
   mode: 'popup' | 'sidepanel';
@@ -10,6 +10,7 @@ interface HeaderProps {
   notice: string;
   onRefresh: () => void;
   onExport: () => void;
+  onExportText: () => void;
   onOpenSidePanel: () => void;
   sidePanelSupported: boolean;
 }
@@ -24,6 +25,7 @@ export function Header({
   notice,
   onRefresh,
   onExport,
+  onExportText,
   onOpenSidePanel,
   sidePanelSupported,
 }: HeaderProps) {
@@ -35,8 +37,8 @@ export function Header({
       <div className="brand-row">
         <img className="brand-icon" src={iconUrl} alt="" width={28} height={28} />
         <div className="brand-copy">
-          <h1>JSON-LD Schema Inspector</h1>
-          <p>Local diagnostics</p>
+          <h1>SEO Inspector</h1>
+          <p>On-page SEO and JSON-LD. Local only.</p>
         </div>
         <div className="header-actions">
           <button type="button" className="icon-button" onClick={onRefresh} title="Refresh" aria-label="Refresh">
@@ -63,6 +65,16 @@ export function Header({
             aria-label="Export JSON report"
           >
             <Download size={16} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onExportText}
+            disabled={!canExport}
+            title="Export text report"
+            aria-label="Export text report"
+          >
+            <FileText size={16} aria-hidden="true" />
           </button>
         </div>
       </div>

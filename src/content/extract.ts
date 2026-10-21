@@ -1,9 +1,14 @@
 import { LIMITS, type Limits } from '../shared/limits';
 import type { ExtractedScript, PageExtraction } from '../shared/types';
 import { parseScript, preprocessJsonLd } from '../parser/jsonld-parser';
+import { collectPage } from './collect-page';
 import { isJsonLdScriptElement } from './dom-filter';
 
-export function collectJsonLd(doc: Document, limits: Partial<Limits> = {}): PageExtraction {
+export function collectJsonLd(
+  doc: Document,
+  limits: Partial<Limits> = {},
+  register?: (id: string, element: Element) => void,
+): PageExtraction {
   const active = { ...LIMITS, ...limits };
   const elements = [...doc.querySelectorAll('script')].filter((element) => isJsonLdScriptElement(element));
   const scripts = elements.map((element, index) => readScript(element, index, active));
@@ -12,6 +17,7 @@ export function collectJsonLd(doc: Document, limits: Partial<Limits> = {}): Page
     title: doc.title,
     extractedAt: new Date().toISOString(),
     scripts,
+    snapshot: collectPage(doc, active, register),
   };
 }
 

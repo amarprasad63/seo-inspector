@@ -30,6 +30,13 @@ export interface OpenSidePanelRequest {
   tabId: number;
 }
 
+export interface HighlightRequest {
+  source: typeof SOURCE;
+  version: typeof PROTOCOL_VERSION;
+  type: 'highlight';
+  highlightId: string;
+}
+
 export interface BackgroundAck {
   ok: boolean;
   error?: string;
@@ -67,4 +74,12 @@ export function isInjectRequest(value: unknown): value is InjectRequest {
 export function isOpenSidePanelRequest(value: unknown): value is OpenSidePanelRequest {
   if (!isEnvelope(value) || value.type !== 'open-side-panel') return false;
   return typeof (value as { tabId?: unknown }).tabId === 'number';
+}
+
+const HIGHLIGHT_ID = /^[a-z]+:\d+$/;
+
+export function isHighlightRequest(value: unknown): value is HighlightRequest {
+  if (!isEnvelope(value) || value.type !== 'highlight') return false;
+  const highlightId = (value as { highlightId?: unknown }).highlightId;
+  return typeof highlightId === 'string' && HIGHLIGHT_ID.test(highlightId);
 }

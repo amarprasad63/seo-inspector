@@ -18,6 +18,12 @@ export interface Limits {
   rawPreviewChars: number;
   rawRenderMaxChars: number;
   listPageSize: number;
+  maxImages: number;
+  maxAnchors: number;
+  maxHeadings: number;
+  maxContentChars: number;
+  maxIds: number;
+  maxParagraphs: number;
 }
 
 export const LIMITS: Limits = {
@@ -49,4 +55,16 @@ export const LIMITS: Limits = {
   rawRenderMaxChars: 500_000,
   /** Schema explorer and validation lists page size. */
   listPageSize: 80,
+  /** Image elements kept in the snapshot. Further images are counted, not inventoried. */
+  maxImages: 400,
+  /** Anchor elements kept in the snapshot. */
+  maxAnchors: 800,
+  /** Heading elements kept in the snapshot. */
+  maxHeadings: 300,
+  /** Visible text characters kept for keyword and content analysis. */
+  maxContentChars: 80_000,
+  /** Element ids kept for fragment checks. */
+  maxIds: 2_000,
+  /** Paragraphs kept for repetition checks. */
+  maxParagraphs: 200,
 };

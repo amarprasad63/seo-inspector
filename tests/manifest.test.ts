@@ -15,7 +15,7 @@ describe('manifest', () => {
     };
     expect(manifest.manifest_version).toBe(3);
     expect(Number.parseInt(manifest.minimum_chrome_version, 10)).toBeGreaterThanOrEqual(116);
-    expect(manifest.permissions.sort()).toEqual(['activeTab', 'scripting', 'sidePanel', 'tabs']);
+    expect(manifest.permissions.sort()).toEqual(['activeTab', 'scripting', 'sidePanel', 'storage', 'tabs']);
     expect(manifest.host_permissions).toEqual(['http://*/*', 'https://*/*']);
     expect(manifest.background.type).toBe('module');
     expect(manifest.action.default_popup).toBe('popup.html');

@@ -1,9 +1,9 @@
 {
   "name": "jsonld-schema-inspector",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "Chrome extension for inspecting, analyzing, and validating JSON-LD structured data on the current page.",
+  "description": "Chrome extension for on-page SEO audits and JSON-LD inspection. Processing stays in the browser.",
   "engines": {
     "node": ">=20"
   },
