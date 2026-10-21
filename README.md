@@ -54,7 +54,7 @@ The content script sends a bounded snapshot: URL, title, meta and link tags, hea
 
 ## Privacy
 
-The store policy is [`privacy.html`](privacy.html).
+The store policy is [`privacy.md`](privacy.md).
 
 - No telemetry, analytics, remote upload, or API key.
 - No request to Google Rich Results Test, robots.txt, link destinations, or image files during the audit.
