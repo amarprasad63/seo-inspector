@@ -131,7 +131,7 @@ export function evaluateSocial(snapshot: PageSnapshot): { outcome: RuleOutcome; 
       );
     }
   }
-  if (!openGraph['og:image:width'] || !openGraph['og:image:height']) {
+  if (ogImage && (!openGraph['og:image:width'] || !openGraph['og:image:height'])) {
     findings.push(
       finding({
         ruleId: 'social.og-image-dimensions-unknown',

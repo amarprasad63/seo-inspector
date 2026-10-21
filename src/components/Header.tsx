@@ -1,4 +1,5 @@
-import { Download, FileText, PanelRightOpen, RefreshCw } from 'lucide-react';
+import { Download, FileText, Moon, PanelRightOpen, RefreshCw, Sun } from 'lucide-react';
+import type { ColorTheme } from '../seo/preferences';
 
 interface HeaderProps {
   mode: 'popup' | 'sidepanel';
@@ -8,6 +9,8 @@ interface HeaderProps {
   refreshing: boolean;
   canExport: boolean;
   notice: string;
+  theme: ColorTheme;
+  onToggleTheme: () => void;
   onRefresh: () => void;
   onExport: () => void;
   onExportText: () => void;
@@ -23,6 +26,8 @@ export function Header({
   refreshing,
   canExport,
   notice,
+  theme,
+  onToggleTheme,
   onRefresh,
   onExport,
   onExportText,
@@ -41,6 +46,16 @@ export function Header({
           <p>On-page SEO and JSON-LD. Local only.</p>
         </div>
         <div className="header-actions">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onToggleTheme}
+            title={theme === 'dark' ? 'Use light background' : 'Use dark background'}
+            aria-label={theme === 'dark' ? 'Use light background' : 'Use dark background'}
+            aria-pressed={theme === 'dark'}
+          >
+            {theme === 'dark' ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
+          </button>
           <button type="button" className="icon-button" onClick={onRefresh} title="Refresh" aria-label="Refresh">
             <RefreshCw size={16} className={refreshing ? 'spin' : undefined} aria-hidden="true" />
           </button>

@@ -6,6 +6,7 @@ import { evaluateImages } from '../src/seo/images';
 import { evaluateIndexability } from '../src/seo/indexability';
 import { evaluateKeywords } from '../src/seo/keywords';
 import { evaluateMetadata } from '../src/seo/metadata';
+import { finding } from '../src/seo/finding';
 import { scoreAudit } from '../src/seo/score';
 import { evaluateSocial } from '../src/seo/social';
 import { evaluateTechnical } from '../src/seo/technical';
@@ -13,6 +14,7 @@ import { countPhrase } from '../src/seo/text';
 import { buildExportDocument, buildTextReport } from '../src/utils/export';
 import { analyzePage } from '../src/validation/engine';
 import type { PageExtraction } from '../src/shared/types';
+import type { AuditCategory, AuditKind, AuditSeverity } from '../src/seo/types';
 import { snapshot } from './seo-fixture';
 
 const targets = { primary: 'internships', secondary: 'engineering roles', brand: '', remember: false };
@@ -207,24 +209,90 @@ describe('indexability and score', () => {
     expect(result.unavailable.some((item) => item.ruleId === 'technical.wcag')).toBe(true);
   });
 
-  it('deducts once per rule, skips disabled rules, and does not invent a score without a snapshot', () => {
+  it('deducts once per rule, keeps accessibility and social off the SEO score, and does not invent coverage without a snapshot', () => {
     const page = snapshot({
       images: [image(0, { altPresent: false, alt: null }), image(1, { altPresent: false, alt: null }), image(2, { altPresent: false, alt: null })],
     });
     const audit = auditPage(extraction(page), null);
-    const alt = audit.score.deductions.find((item) => item.ruleId === 'images.missing-alt');
+    const accessibility = audit.score.groups.find((group) => group.group === 'accessibility');
+    const alt = accessibility?.deductions.find((item) => item.ruleId === 'images.missing-alt');
     expect(alt?.instances).toBe(3);
     expect(alt?.points).toBe(3);
+    expect(audit.score.deductions.some((item) => item.ruleId === 'images.missing-alt')).toBe(false);
+    expect(audit.score.deductions.some((item) => item.ruleId.startsWith('social.'))).toBe(false);
+    expect(audit.score.coverage.percent).not.toBeNull();
+    expect(audit.score.coverage.unevaluated).toBeGreaterThan(0);
     const disabled = auditPage(extraction(page), null, { disabledRuleIds: new Set(['images.missing-alt']) });
-    expect(disabled.score.deductions.some((item) => item.ruleId === 'images.missing-alt')).toBe(false);
+    const disabledA11y = disabled.score.groups.find((group) => group.group === 'accessibility');
+    expect(disabledA11y?.deductions.some((item) => item.ruleId === 'images.missing-alt')).toBe(false);
     expect(disabled.score.excludedRuleIds).toContain('images.missing-alt');
-    expect(disabled.summary.score).toBeGreaterThan(audit.summary.score ?? 0);
+    expect(disabledA11y?.score ?? 0).toBeGreaterThan(accessibility?.score ?? 0);
+    expect(disabled.summary.score).toBe(audit.summary.score);
+    expect(disabled.score.coverage.disabled).toBe(1);
     const bare = auditPage({ url: page.url, title: page.title, extractedAt: '2026-10-21T08:00:00.000Z', scripts: [] }, null);
-    expect(bare.summary.score).not.toBeNull();
+    expect(bare.summary.score).toBeNull();
+    expect(bare.score.coverage.provisional).toBe(true);
+    expect(bare.score.coverage.percent).toBeNull();
     expect(bare.unavailable.some((item) => item.ruleId === 'audit.snapshot-missing')).toBe(true);
     expect(bare.summary.metadataStatus).toBe('Not collected');
-    const zero = scoreAudit([], new Set());
-    expect(zero.score).toBe(100);
+    const zero = scoreAudit({ findings: [], disabled: new Set(), onPageCollected: true });
+    expect(zero.score).toBeNull();
+    expect(zero.coverage.percent).toBeNull();
+  });
+});
+
+describe('score grouping', () => {
+  it('is independent of finding order, clamps at 0, and deducts an overlapping issue once', () => {
+    const title = rule('metadata.title-missing', 'error', 'metadata');
+    const titleAgain = rule('metadata.title-missing', 'error', 'metadata', 'technical', 'second title element');
+    const noindex = rule('indexability.noindex', 'warning', 'indexability');
+    const conflict = rule('indexability.robots-conflict', 'warning', 'indexability');
+    const forward = scoreAudit({ findings: [title, titleAgain, noindex, conflict], disabled: new Set(), onPageCollected: true });
+    const reverse = scoreAudit({ findings: [conflict, noindex, titleAgain, title], disabled: new Set(), onPageCollected: true });
+    expect(forward.score).toBe(reverse.score);
+    expect(forward.deductions).toEqual(reverse.deductions);
+    expect(forward.deductions.find((item) => item.ruleId === 'metadata.title-missing')?.instances).toBe(2);
+    expect(forward.deductions.find((item) => item.ruleId === 'metadata.title-missing')?.points).toBe(10);
+    expect(forward.deductions.some((item) => item.ruleId === 'indexability.noindex')).toBe(false);
+    expect(forward.groups[0]?.overlapped.some((item) => item.ruleId === 'indexability.noindex' && item.countedAs === 'indexability.robots-conflict')).toBe(true);
+
+    const many = Array.from({ length: 12 }, (_, index) => rule(`metadata.extra-${index}`, 'error', 'metadata', 'technical', `evidence ${index}`));
+    expect(scoreAudit({ findings: many, disabled: new Set(), onPageCollected: true }).score).toBe(0);
+
+    const social = rule('social.missing-og:url', 'warning', 'social', 'best-practice');
+    const socialScore = scoreAudit({ findings: [social], disabled: new Set(), onPageCollected: true });
+    expect(socialScore.score).toBeNull();
+    expect(socialScore.groups.find((group) => group.group === 'social')?.score).toBe(97);
+
+    const relative = rule('indexability.canonical-relative', 'warning', 'indexability');
+    const multiple = rule('indexability.canonical-multiple', 'warning', 'indexability');
+    const canonical = scoreAudit({ findings: [relative, multiple], disabled: new Set(), onPageCollected: true });
+    expect(canonical.deductions.map((item) => item.ruleId)).toEqual(['indexability.canonical-multiple']);
+    const withoutWinner = scoreAudit({ findings: [relative], disabled: new Set(['indexability.canonical-multiple']), onPageCollected: true });
+    expect(withoutWinner.deductions.map((item) => item.ruleId)).toEqual(['indexability.canonical-relative']);
+  });
+
+  it('does not treat unevaluated checks as passed and leaves an unrequested keyword out of coverage', () => {
+    const passed = { ruleId: 'metadata.title-present', name: 'Title', category: 'metadata' as const, summary: 'present' };
+    const report = scoreAudit({
+      findings: [],
+      passed: [passed],
+      unavailable: [
+        { ruleId: 'indexability.robots-txt', name: 'robots.txt', category: 'indexability', reason: 'not fetched' },
+        { ruleId: 'indexability.x-robots', name: 'X-Robots-Tag', category: 'indexability', reason: 'not read' },
+        { ruleId: 'indexability.redirects', name: 'Redirects', category: 'indexability', reason: 'not available' },
+        { ruleId: 'keywords.target', name: 'Target keyword', category: 'keywords', reason: 'not entered', countsTowardCoverage: false },
+      ],
+      disabled: new Set(),
+      onPageCollected: true,
+    });
+    expect(report.score).toBe(100);
+    expect(report.coverage.evaluated).toBe(1);
+    expect(report.coverage.unevaluated).toBe(3);
+    expect(report.coverage.percent).toBe(25);
+    expect(report.coverage.provisional).toBe(true);
+    expect(report.coverage.summary).toMatch(/Provisional/);
+    expect(report.coverage.summary).toMatch(/not treated as passed|not in that total|incomplete/);
   });
 });
 
@@ -271,6 +339,22 @@ describe('structured data regression and export', () => {
     expect(text).not.toMatch(/<script>/);
   });
 });
+
+function rule(ruleId: string, severity: AuditSeverity, category: AuditCategory, kind: AuditKind = 'technical', evidence = ruleId) {
+  return finding({
+    ruleId,
+    name: ruleId,
+    category,
+    severity,
+    kind,
+    message: ruleId,
+    why: 'Test finding.',
+    evidence,
+    remediation: 'Test remediation.',
+    highlightId: null,
+    selectorHint: null,
+  });
+}
 
 function image(index: number, partial: Partial<PageExtraction['snapshot']> extends never ? never : Record<string, unknown>) {
   return {

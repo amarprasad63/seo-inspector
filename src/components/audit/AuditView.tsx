@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { CopyButton } from '../CopyButton';
 import { RawJsonViewer } from '../RawJsonViewer';
 import { SchemaExplorer } from '../SchemaExplorer';
@@ -12,6 +12,7 @@ import {
   type AuditSection,
   type AuditSeverity,
   type KeywordTargets,
+  type ScoreContribution,
   type SeoAudit,
 } from '../../seo/types';
 import type { PageExtraction } from '../../shared/types';
@@ -50,6 +51,7 @@ export function AuditView({
   const [showPreviewImage, setShowPreviewImage] = useState(false);
   const [expandedKeyword, setExpandedKeyword] = useState<string | null>(null);
   const snapshot = extraction.snapshot;
+  const contributions = useMemo(() => new Map(audit.score.contributions.map((item) => [item.ruleId, item])), [audit.score]);
 
   const sectionFindings = useMemo(() => {
     const category = sectionCategory(section);
@@ -104,6 +106,7 @@ export function AuditView({
             onOpen={openSection}
             onToggleRule={onToggleRule}
             onHighlight={onHighlight}
+            contributions={contributions}
           />
         ) : null}
         {section === 'metadata' && snapshot ? <MetadataFacts snapshotTitle={snapshot.title} description={metaValues(snapshot, 'name', 'description')} robots={metaValues(snapshot, 'name', 'robots')} lang={snapshot.htmlLang} charset={snapshot.charset} viewport={metaValues(snapshot, 'name', 'viewport')} /> : null}
@@ -139,7 +142,7 @@ export function AuditView({
         {section !== 'overview' && section !== 'structured' ? (
           <>
             <SeverityChips value={severity} onChange={setSeverity} />
-            <FindingList findings={sectionFindings} onHighlight={onHighlight} />
+            <FindingList findings={sectionFindings} onHighlight={onHighlight} contributions={contributions} />
             <Unavailable notes={audit.unavailable.filter((item) => section === 'recommendations' || item.category === sectionCategory(section) || (section === 'technical' && item.category === 'accessibility'))} />
           </>
         ) : null}
@@ -157,19 +160,35 @@ function Overview({
   onOpen,
   onToggleRule,
   onHighlight,
+  contributions,
 }: {
   audit: SeoAudit;
   disabled: ReadonlySet<string>;
   onOpen: (section: AuditSection, severity?: AuditSeverity | 'all') => void;
   onToggleRule: (ruleId: string) => void;
   onHighlight: (highlightId: string) => void;
+  contributions: ReadonlyMap<string, ScoreContribution>;
 }) {
+  const scoreDetails = useRef<HTMLDetailsElement>(null);
   const top = audit.findings.filter((item) => item.severity === 'error' || item.severity === 'warning').slice(0, 5);
+
+  function openScoreDetails() {
+    const details = scoreDetails.current;
+    if (!details) return;
+    details.open = true;
+    details.scrollIntoView({ block: 'nearest' });
+  }
+
   return (
     <section>
-      <p className="disclaimer">{audit.score.label} {audit.summary.score == null ? 'Score unavailable because the page snapshot was not collected.' : null}</p>
+      <p className="disclaimer">
+        {audit.score.label}{' '}
+        <button type="button" className="text-button inline" onClick={openScoreDetails}>
+          How this score is calculated
+        </button>
+      </p>
       <div className="metrics metrics-wrap">
-        <Metric label="Score" value={audit.summary.score == null ? '—' : String(audit.summary.score)} onClick={() => onOpen('overview')} />
+        <Metric label="SEO score" value={audit.summary.score == null ? '—' : String(audit.summary.score)} onClick={openScoreDetails} />
         <Metric label="Critical" value={String(audit.summary.errors)} tone="error" onClick={() => onOpen('recommendations', 'error')} />
         <Metric label="Warnings" value={String(audit.summary.warnings)} tone="warning" onClick={() => onOpen('recommendations', 'warning')} />
         <Metric label="Passed" value={String(audit.summary.passed)} onClick={() => onOpen('overview')} />
@@ -181,28 +200,68 @@ function Overview({
         <Metric label="Entities" value={String(audit.summary.entities)} onClick={() => onOpen('structured')} />
         <Metric label="Indexability" value={audit.summary.indexability} onClick={() => onOpen('indexability')} />
       </div>
-      <FindingList findings={top} onHighlight={onHighlight} />
-      <details>
+      <p className="score-coverage">{audit.score.coverage.summary}</p>
+      <p className="score-groups">
+        {audit.score.groups
+          .filter((group) => group.group !== 'seo')
+          .map((group) => (
+            <span key={group.group}>
+              {group.label}: {group.score == null ? 'not evaluated' : group.score}
+            </span>
+          ))}
+      </p>
+      <FindingList findings={top} onHighlight={onHighlight} contributions={contributions} />
+      <details id="score-calculation" ref={scoreDetails}>
         <summary>How the score was calculated</summary>
         <p>{audit.score.methodology}</p>
-        <ul className="plain-list">
-          {audit.score.deductions.map((item) => (
-            <li key={item.ruleId}>
-              <label>
-                <input type="checkbox" checked={!disabled.has(item.ruleId)} onChange={() => onToggleRule(item.ruleId)} /> {item.ruleId} −{item.points} ({item.instances} instance{item.instances === 1 ? '' : 's'})
-              </label>
-            </li>
-          ))}
-          {[...disabled].map((ruleId) => (
-            <li key={ruleId}>
-              <label>
-                <input type="checkbox" checked={false} onChange={() => onToggleRule(ruleId)} /> {ruleId} excluded from the score
-              </label>
-            </li>
-          ))}
-        </ul>
-        {audit.score.deductions.length === 0 ? <p>No deductions.</p> : null}
-        <p>{audit.score.infoIgnored} informational rules do not change the score. {audit.unavailable.length} checks could not be evaluated and were not marked as passed.</p>
+        <p>{audit.score.coverage.summary}</p>
+        {audit.score.groups.map((group) => (
+          <div key={group.group}>
+            <p>
+              <strong>{group.label}</strong> {group.score == null ? 'not evaluated' : group.score}
+            </p>
+            <ul className="plain-list">
+              {group.deductions.map((item) => (
+                <li key={item.ruleId}>
+                  <label>
+                    <input type="checkbox" checked={!disabled.has(item.ruleId)} onChange={() => onToggleRule(item.ruleId)} /> {item.ruleId} −{item.points} ({item.instances} instance{item.instances === 1 ? '' : 's'}, counted once)
+                  </label>
+                </li>
+              ))}
+              {group.overlapped.map((item) => (
+                <li key={item.ruleId}>
+                  {item.ruleId} is the same issue as {item.countedAs}, so it is not deducted again ({item.instances} instance{item.instances === 1 ? '' : 's'}).
+                </li>
+              ))}
+            </ul>
+            {group.deductions.length === 0 && group.overlapped.length === 0 ? <p>No deductions.</p> : null}
+          </div>
+        ))}
+        {[...disabled].length > 0 ? (
+          <ul className="plain-list">
+            {[...disabled].map((ruleId) => (
+              <li key={ruleId}>
+                <label>
+                  <input type="checkbox" checked={false} onChange={() => onToggleRule(ruleId)} /> {ruleId} disabled, excluded from the score and from coverage
+                </label>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <p>{audit.score.infoIgnored} informational rules do not change a score.</p>
+        {audit.unavailable.length > 0 ? (
+          <>
+            <p>Could not evaluate. These were not marked as passed.</p>
+            <ul className="plain-list">
+              {audit.unavailable.map((item) => (
+                <li key={item.ruleId}>
+                  {item.name}: {item.reason}
+                  {item.countsTowardCoverage === false ? ' Not included in coverage.' : ''}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
       </details>
     </section>
   );

@@ -25,6 +25,7 @@ export function evaluateKeywords(snapshot: PageSnapshot, targets: KeywordTargets
         name: 'Target keyword',
         category: 'keywords',
         reason: 'No primary keyword was entered. Automatic terms are still listed. They are not search-demand data.',
+        countsTowardCoverage: false,
       }),
     );
   }

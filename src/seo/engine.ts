@@ -2,7 +2,7 @@ import type { PageExtraction } from '../shared/types';
 import type { Analysis } from '../validation/engine';
 import { evaluateAnchors } from './anchors';
 import { evaluateContent } from './content-quality';
-import { mergeOutcomes } from './finding';
+import { mergeOutcomes, passed } from './finding';
 import { evaluateHeadings } from './headings';
 import { evaluateImages } from './images';
 import { evaluateIndexability } from './indexability';
@@ -12,7 +12,7 @@ import { scoreAudit } from './score';
 import { evaluateSocial } from './social';
 import { structuredFromJsonLd } from './structured';
 import { evaluateTechnical } from './technical';
-import { EMPTY_TARGETS, type AuditFinding, type KeywordTargets, type SeoAudit } from './types';
+import { EMPTY_TARGETS, type AuditFinding, type KeywordTargets, type RuleOutcome, type SeoAudit } from './types';
 
 const PER_RULE_CAP = 25;
 
@@ -26,8 +26,21 @@ export function auditPage(extraction: PageExtraction, analysis: Analysis | null,
   const disabled = options.disabledRuleIds ?? new Set<string>();
   const snapshot = extraction.snapshot;
   if (!snapshot) {
-    const structured = structuredFromJsonLd(analysis?.findings ?? []);
-    const score = scoreAudit(structured.findings, disabled);
+    const structured = withStructuredPass(structuredFromJsonLd(analysis?.findings ?? []), analysis);
+    const score = scoreAudit({
+      findings: structured.findings,
+      passed: structured.passed,
+      unavailable: [
+        {
+          ruleId: 'audit.snapshot-missing',
+          name: 'On-page snapshot',
+          category: 'technical',
+          reason: 'This payload has JSON-LD only. Metadata, headings, links, and images were not collected, so those checks were not passed or failed.',
+        },
+      ],
+      disabled,
+      onPageCollected: false,
+    });
     return {
       summary: emptySummary(score.score, analysis?.entities.length ?? 0, 'On-page signals were not in this payload.'),
       score,
@@ -66,9 +79,15 @@ export function auditPage(extraction: PageExtraction, analysis: Analysis | null,
   const indexability = evaluateIndexability(snapshot);
   const content = evaluateContent(snapshot);
   const technical = evaluateTechnical(snapshot);
-  const structured = structuredFromJsonLd(analysis?.findings ?? []);
+  const structured = withStructuredPass(structuredFromJsonLd(analysis?.findings ?? []), analysis);
   const merged = mergeOutcomes([metadata, keywords.outcome, headings.outcome, social.outcome, images, anchors, indexability, content, technical, structured]);
-  const score = scoreAudit(merged.findings, disabled);
+  const score = scoreAudit({
+    findings: merged.findings,
+    passed: merged.passed,
+    unavailable: merged.unavailable,
+    disabled,
+    onPageCollected: true,
+  });
   const active = merged.findings.filter((item) => !disabled.has(item.ruleId));
   const capped = capFindings(active);
   const errors = active.filter((item) => item.severity === 'error').length;
@@ -127,7 +146,7 @@ function capFindings(findings: AuditFinding[]): { findings: AuditFinding[]; omit
       kept.push({
         ...sample,
         id: `${sample.ruleId}|omitted`,
-        message: `${list.length - PER_RULE_CAP} more instances of ${sample.ruleId} were omitted from this list. They still count as one rule in the score.`,
+        message: `${list.length - PER_RULE_CAP} more instances of ${sample.ruleId} were omitted from this list. The rule still deducts once. The instance count includes them.`,
         evidence: `${list.length} instances`,
       });
     }
@@ -135,6 +154,26 @@ function capFindings(findings: AuditFinding[]): { findings: AuditFinding[]; omit
   const rank = { error: 0, warning: 1, info: 2 };
   kept.sort((left, right) => rank[left.severity] - rank[right.severity] || left.ruleId.localeCompare(right.ruleId));
   return { findings: kept, omitted };
+}
+
+function withStructuredPass(structured: RuleOutcome, analysis: Analysis | null): RuleOutcome {
+  if (!analysis) return structured;
+  const hasEligibilityFinding = structured.findings.some(
+    (item) => item.ruleId.startsWith('jsonld.google.') || item.ruleId.startsWith('jsonld.schema.') || item.ruleId.startsWith('jsonld.recommendation.'),
+  );
+  if (hasEligibilityFinding) return structured;
+  return {
+    ...structured,
+    passed: [
+      ...structured.passed,
+      passed({
+        ruleId: 'jsonld.reviewed',
+        name: 'JSON-LD checks',
+        category: 'structured-data',
+        summary: 'JSON-LD checks ran. No schema or rich-result finding was reported.',
+      }),
+    ],
+  };
 }
 
 function emptySummary(score: number | null, entities: number, indexability: string): SeoAudit['summary'] {

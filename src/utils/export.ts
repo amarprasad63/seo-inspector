@@ -72,7 +72,8 @@ export function buildTextReport(extraction: PageExtraction, audit: SeoAudit): st
     `URL: ${extraction.url}`,
     `Title: ${extraction.title}`,
     `Extracted: ${extraction.extractedAt}`,
-    `Score: ${audit.summary.score ?? 'not available'}`,
+    `Score: ${audit.summary.score ?? 'not available'}${audit.score.coverage.provisional ? ' (provisional)' : ''}`,
+    audit.score.coverage.summary,
     audit.score.methodology,
     '',
     `Errors: ${audit.summary.errors}`,
@@ -86,9 +87,15 @@ export function buildTextReport(extraction: PageExtraction, audit: SeoAudit): st
     '',
     'Score deductions',
   ];
-  if (audit.score.deductions.length === 0) lines.push('None.');
-  for (const deduction of audit.score.deductions) {
-    lines.push(`- ${deduction.ruleId}: -${deduction.points} (${deduction.severity}, ${deduction.instances} instance(s))`);
+  for (const group of audit.score.groups) {
+    lines.push('', `${group.label}: ${group.score ?? 'not evaluated'}`);
+    if (group.deductions.length === 0 && group.overlapped.length === 0) lines.push('No deductions.');
+    for (const deduction of group.deductions) {
+      lines.push(`- ${deduction.ruleId}: -${deduction.points} (${deduction.severity}, ${deduction.instances} instance(s), counted once)`);
+    }
+    for (const overlap of group.overlapped) {
+      lines.push(`- ${overlap.ruleId}: not deducted again (same issue as ${overlap.countedAs}, ${overlap.instances} instance(s))`);
+    }
   }
   lines.push('', 'Findings');
   if (audit.findings.length === 0) lines.push('None.');

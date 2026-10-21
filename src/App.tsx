@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { AuditView } from './components/audit/AuditView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Header } from './components/Header';
@@ -6,7 +6,7 @@ import { StatusCard } from './components/StatusCard';
 import { useAnalysis } from './hooks/useAnalysis';
 import { useInspection } from './hooks/useInspection';
 import { auditPage } from './seo/engine';
-import { loadKeywordTargets, saveKeywordTargets } from './seo/preferences';
+import { loadKeywordTargets, loadTheme, saveKeywordTargets, saveTheme, watchTheme, type ColorTheme } from './seo/preferences';
 import { EMPTY_TARGETS, type KeywordTargets } from './seo/types';
 import { isHighlightRequest, PROTOCOL_VERSION, SOURCE } from './shared/protocol';
 import { buildExportDocument, buildTextReport, downloadJson, downloadText, exportFilename } from './utils/export';
@@ -18,6 +18,8 @@ export function App({ mode }: { mode: 'popup' | 'sidepanel' }) {
   const [targetsReady, setTargetsReady] = useState(false);
   const [disabled, setDisabled] = useState<ReadonlySet<string>>(() => new Set());
   const [notice, setNotice] = useState('');
+  const [theme, setTheme] = useState<ColorTheme>('light');
+  const [themeReady, setThemeReady] = useState(false);
 
   useEffect(() => {
     void loadKeywordTargets().then((stored) => {
@@ -30,6 +32,23 @@ export function App({ mode }: { mode: 'popup' | 'sidepanel' }) {
     if (!targetsReady) return;
     void saveKeywordTargets(targets);
   }, [targets, targetsReady]);
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
+  useEffect(() => {
+    void loadTheme().then((stored) => {
+      setTheme(stored);
+      setThemeReady(true);
+    });
+    return watchTheme(setTheme);
+  }, []);
+
+  useEffect(() => {
+    if (!themeReady) return;
+    void saveTheme(theme);
+  }, [theme, themeReady]);
 
   const audit = useMemo(() => {
     if (!inspection.extraction || !analysis) return null;
@@ -84,6 +103,8 @@ export function App({ mode }: { mode: 'popup' | 'sidepanel' }) {
           onRefresh={inspection.refresh}
           onExport={exportReport}
           onExportText={exportText}
+          theme={theme}
+          onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
           onOpenSidePanel={() => {
             void inspection.openSidePanel().catch((error: unknown) => {
               setNotice(error instanceof Error ? error.message : 'The side panel could not be opened.');

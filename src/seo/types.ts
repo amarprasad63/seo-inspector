@@ -47,6 +47,11 @@ export interface UnavailableCheck {
   name: string;
   category: AuditCategory;
   reason: string;
+  /**
+   * False when the check was not requested, such as a keyword the user did not enter.
+   * Those checks stay visible and are left out of the coverage denominator.
+   */
+  countsTowardCoverage?: boolean;
 }
 
 export interface RuleOutcome {
@@ -104,6 +109,8 @@ export interface HeadingNode {
   children: HeadingNode[];
 }
 
+export type ScoreGroup = 'seo' | 'accessibility' | 'social' | 'structured-data';
+
 export interface ScoreDeduction {
   ruleId: string;
   severity: AuditSeverity;
@@ -111,11 +118,57 @@ export interface ScoreDeduction {
   instances: number;
 }
 
+export interface ScoreOverlap {
+  ruleId: string;
+  countedAs: string;
+  instances: number;
+}
+
+export interface ScoreContribution {
+  ruleId: string;
+  group: ScoreGroup;
+  groupLabel: string;
+  severity: AuditSeverity;
+  /** Points actually deducted. Zero when the finding is informational or already covered by another rule. */
+  points: number;
+  instances: number;
+  /** Set when a related rule already took the deduction for the same issue. */
+  countedAs: string | null;
+}
+
+export interface GroupScore {
+  group: ScoreGroup;
+  label: string;
+  /** Null when this group had no evaluated check. A missing check is not treated as 100. */
+  score: number | null;
+  deductions: ScoreDeduction[];
+  overlapped: ScoreOverlap[];
+  evaluated: number;
+}
+
+export interface ScoreCoverage {
+  evaluated: number;
+  unevaluated: number;
+  disabled: number;
+  /**
+   * evaluated / (evaluated + unevaluated), as a rounded percent.
+   * Null when that denominator is 0, or when the page snapshot was not collected.
+   */
+  percent: number | null;
+  provisional: boolean;
+  summary: string;
+}
+
 export interface ScoreReport {
+  /** On-page SEO score. Null when no SEO check was evaluated. */
   score: number | null;
   label: string;
   methodology: string;
+  /** Deductions that changed the on-page SEO score. */
   deductions: ScoreDeduction[];
+  groups: GroupScore[];
+  contributions: ScoreContribution[];
+  coverage: ScoreCoverage;
   excludedRuleIds: string[];
   infoIgnored: number;
 }

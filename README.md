@@ -30,7 +30,7 @@ Reload the extension after each production build. Reload an already-open tab onc
 ## How to use it
 
 1. Open an ordinary `http` or `https` page.
-2. Click the toolbar icon. The popup shows one audit section at a time.
+2. Click the toolbar icon. The popup shows one audit section at a time. The background is white. The moon button switches to dark mode, and that choice is remembered on this device.
 3. **Open side panel** for the full section list.
 4. **Refresh** reads the page again. The content script also watches relevant DOM edits and pushes an update after a short debounce when the collected snapshot or JSON-LD actually changed.
 5. Use the section list for Overview, Metadata, Keywords, Headings, Social, Links, Images, Indexability, Structured data, Technical SEO, Content analysis, and Recommendations.
@@ -71,7 +71,7 @@ Findings use four severities:
 | Severity | Meaning |
 | --- | --- |
 | Error | The page is missing something basic, such as a document title, or JSON-LD is invalid. |
-| Warning | A likely problem or an important gap, such as a missing description, `noindex`, or an image with no `alt` attribute. |
+| Warning | A likely problem or an important gap. A missing description or `noindex` affects the on-page SEO score. A missing `alt` attribute is a warning on the accessibility score. |
 | Info | Context, a heuristic, or a display suggestion. Info does not change the score. |
 | Passed | The check ran and did not fail. Passed checks are counted separately. |
 
@@ -79,9 +79,31 @@ A check that cannot be evaluated is listed under **Could not evaluate**. It is n
 
 ### Score
 
-The score starts at 100. Each rule id deducts once, using its strongest severity: error 10, warning 3, info 0. Fifty images missing `alt` are one warning deduction, and the finding list still shows the instances up to a per-rule cap. Disabled rules are excluded. The overview lists the deductions and lets you turn a rule off for the current session.
+The headline number is an **on-page SEO score**. It starts at 100. Each SEO rule deducts once, using its strongest severity: error 10, warning 3, info 0. Repeated instances do not deduct again. Fifty images missing `alt` are one accessibility deduction, and the finding still shows how many elements matched.
 
-Improving the score does not guarantee a ranking change. The label in the product says this is not a Google ranking score.
+Accessibility, social metadata, and structured-data eligibility have their own scores. They stay in the findings and do not change the on-page number. Invalid JSON-LD still affects the on-page score, because the markup on the page does not parse. Google rich-result gaps stay on the structured-data score.
+
+When two rules describe the same issue, only one deducts. Several canonical problems on the same tags count once. A robots tag that says `noindex` and also contradicts itself counts once.
+
+Disabled rules are excluded from the score and from coverage. A check that could not be evaluated is not passed and is not failed. Coverage is evaluated checks divided by evaluated plus not-evaluated checks. Disabled rules are not in that total. A keyword you did not enter is not part of the total. If the page snapshot is missing, coverage is not shown, because the denominator would be a guess. If coverage is under 70%, the score is marked provisional.
+
+The score does not predict Google rankings. Fixing a finding does not guarantee a ranking change.
+
+### Why a finding sits on one score
+
+Severities were not changed to move the number. The change is which score the finding affects.
+
+| Check | Severity | Score | Why |
+| --- | --- | --- | --- |
+| Missing title | Error | On-page SEO | The document has no title. |
+| Missing meta description | Warning | On-page SEO | Google may write the snippet. This is not an indexing error. |
+| `noindex` | Warning | On-page SEO | A real directive. The extension still does not know if the URL is indexed. |
+| Duplicate ids | Warning | On-page SEO | Can break fragments and references. Impact depends on use, so it stays a warning. |
+| Missing H1 | Warning | Accessibility | Helps the outline and assistive technology. Not scored as a ranking defect. |
+| Missing `alt`, unnamed links, unlabeled controls, iframe titles | Warning | Accessibility | These are accessible-name gaps. They stay visible and do not change the SEO score. |
+| Missing `og:*` | Warning | Social metadata | Sharing tags. Google Search does not require them. Five missing tags do not stack onto the SEO score. |
+| Empty `alt` | Info | None | Decorative. Info does not change a score. |
+| Canonical differs from this URL | Info | None | Often intentional. |
 
 ### What is a requirement, a practice, or a heuristic
 
@@ -92,9 +114,9 @@ Improving the score does not guarantee a ranking change. The label in the produc
 | [Robots meta tag](https://developers.google.com/search/docs/crawling-indexing/robots-meta-tag) | `noindex` is reported as a directive. The extension does not know if the URL is indexed. |
 | [Canonical URLs](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls) | A canonical that differs from the current URL is informational. It may be intentional. |
 | [Localized versions](https://developers.google.com/search/docs/specialty/international/localized-versions) | `hreflang` codes are checked in this document. Return links on other URLs are not fetched. |
-| [Google Images](https://developers.google.com/search/docs/appearance/google-images) | Missing `alt` is a warning. Empty `alt` is decorative and is not an error. File size is unknown. |
+| [Google Images](https://developers.google.com/search/docs/appearance/google-images) | Missing `alt` is an accessibility warning. Empty `alt` is decorative and is not an error. File size is unknown. |
 | [Qualify outbound links](https://developers.google.com/search/docs/crawling-indexing/qualify-outbound-links) | `nofollow`, `sponsored`, and `ugc` are described and are not errors. |
-| [Open Graph](https://ogp.me/) | Missing `og:title`, `og:description`, `og:type`, `og:url`, or `og:image` is a sharing warning, not a Google Search requirement. |
+| [Open Graph](https://ogp.me/) | Missing `og:title`, `og:description`, `og:type`, `og:url`, or `og:image` is a social-score warning, not a Google Search requirement. |
 | Twitter/X cards | Missing `twitter:*` tags are informational. The preview falls back to Open Graph when those tags are empty. Platform support changes, so this is not a full card validator. |
 | JSON-LD | See the validation table below. Schema.org coverage is a subset. Google rich-result checks were last reviewed **2026-10-01**. |
 
@@ -164,7 +186,7 @@ Vitest covers JSON-LD parsing and validation, metadata, keywords, Open Graph and
 - Content quality, expertise, originality, and search intent are not judged.
 - Shadow DOM and iframes are not scanned.
 - The social preview does not execute markup from the page. Image dimensions that are not in meta tags stay unknown.
-- Keyword memory uses `chrome.storage.local` only after you opt in.
+- Keyword memory uses `chrome.storage.local` only after you opt in. The light or dark background choice is stored the same way, and nothing is uploaded.
 
 ## Manual check after loading `dist/`
 
