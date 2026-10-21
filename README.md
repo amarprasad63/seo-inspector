@@ -10,11 +10,11 @@ Chrome and other Chromium browsers with Manifest V3, the side panel, and ES modu
 
 ```bash
 npm install
-npm run typecheck
-npm test
-npm run lint
+npm run check
 npm run build
 ```
+
+`npm install` installs a git pre-commit hook. The hook runs `npm run check`, which typechecks, lints, and runs the tests. A failing check stops the commit.
 
 `npm run build` typechecks, bundles the popup and side panel with Vite, bundles the content script and service worker with esbuild, and checks that `dist/manifest.json` points at files that exist.
 

@@ -11,6 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "lint": "eslint .",
+    "check": "npm run typecheck && npm run lint && npm test",
+    "prepare": "node scripts/install-git-hooks.mjs",
     "build:ui": "vite build",
     "build:scripts": "node scripts/build-extension.mjs",
     "verify": "node scripts/verify-dist.mjs",
