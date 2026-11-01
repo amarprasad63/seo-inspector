@@ -1,3 +1,5 @@
+import type { AssetCollection } from '../assets/types';
+
 export type ContentParseStatus = 'ok' | 'error' | 'empty' | 'deferred';
 
 export type ParseStatus = 'ok' | 'error' | 'empty';
@@ -23,6 +25,11 @@ export interface PageExtraction {
    * Absent only for older payloads. JSON-LD analysis does not require it.
    */
   snapshot?: PageSnapshot;
+  /**
+   * Resource inventory from the Performance Resource Timing API and DOM discovery.
+   * Absent only for older payloads.
+   */
+  assets?: AssetCollection;
 }
 
 export interface MetaEntry {

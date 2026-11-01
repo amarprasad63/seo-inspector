@@ -8,7 +8,7 @@ SEO Inspector is a browser extension that helps users inspect webpages for SEO i
 
 ## Information Collection and Use
 
-SEO Inspector processes webpage content, including metadata, headings, links, images, and structured data, to perform audits requested by the user.
+SEO Inspector processes webpage content, including metadata, headings, links, images, resource timing and asset inventory signals available in the page, and structured data, to perform audits requested by the user.
 
 The extension is designed to perform its analysis locally in the browser. It does not intentionally transmit inspected webpage content to an external server, collect personal information, or sell user data, provided the installed version operates as described.
 

@@ -1,9 +1,11 @@
+import { createResourceTimingObserver, ensureResourceTimingBuffer } from '../assets/collector';
+import { ResourceTimingBuffer } from '../assets/collector-buffer';
+import { LIMITS } from '../shared/limits';
+import { PROTOCOL_VERSION, SOURCE, isExtractRequest, isHighlightRequest } from '../shared/protocol';
 import { collectJsonLd } from './extract';
 import { createDebounced } from './debounce';
 import { highlightElement, isInspectorNode } from './highlight';
 import { pageSignature } from './signature';
-import { LIMITS } from '../shared/limits';
-import { PROTOCOL_VERSION, SOURCE, isExtractRequest, isHighlightRequest } from '../shared/protocol';
 
 const INSTALLED = '__jsonLdSchemaInspectorInstalled';
 
@@ -13,6 +15,20 @@ function install(): void {
   host[INSTALLED] = true;
   if (!document.documentElement) return;
 
+  ensureResourceTimingBuffer();
+  const timingBuffer = new ResourceTimingBuffer();
+  const observer = createResourceTimingObserver((entry) => timingBuffer.add(entry));
+  if (typeof performance !== 'undefined' && typeof performance.addEventListener === 'function') {
+    performance.addEventListener('resourcetimingbufferfull', () => {
+      ensureResourceTimingBuffer();
+      try {
+        performance.clearResourceTimings();
+      } catch {
+        // Ignore environments that disallow clearing.
+      }
+    });
+  }
+
   const elements = new Map<string, Element>();
   let lastSignature = '';
 
@@ -20,7 +36,7 @@ function install(): void {
     elements.clear();
     return collectJsonLd(document, LIMITS, (id, element) => {
       elements.set(id, element);
-    });
+    }, timingBuffer.snapshot());
   };
 
   const publish = (): void => {
@@ -34,7 +50,7 @@ function install(): void {
   };
 
   const debounced = createDebounced(publish, LIMITS.mutationDebounceMs);
-  const observer = new MutationObserver((mutations) => {
+  const mutationObserver = new MutationObserver((mutations) => {
     const relevant = mutations.some((mutation) => {
       if (isInspectorNode(mutation.target)) return false;
       if (mutation.type === 'childList') {
@@ -46,7 +62,7 @@ function install(): void {
     if (relevant) debounced.trigger();
   });
 
-  observer.observe(document.documentElement, {
+  mutationObserver.observe(document.documentElement, {
     subtree: true,
     childList: true,
     characterData: true,
@@ -75,7 +91,9 @@ function install(): void {
     'pagehide',
     () => {
       debounced.cancel();
-      observer.disconnect();
+      mutationObserver.disconnect();
+      observer?.disconnect();
+      timingBuffer.clear();
       document.getElementById('seo-inspector-highlight')?.remove();
     },
     { once: true },

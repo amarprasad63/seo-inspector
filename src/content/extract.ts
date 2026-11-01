@@ -1,3 +1,5 @@
+import { collectAssets } from '../assets/collector';
+import type { PerformanceResourceTimingLike } from '../assets/collector-buffer';
 import { LIMITS, type Limits } from '../shared/limits';
 import type { ExtractedScript, PageExtraction } from '../shared/types';
 import { parseScript, preprocessJsonLd } from '../parser/jsonld-parser';
@@ -8,6 +10,7 @@ export function collectJsonLd(
   doc: Document,
   limits: Partial<Limits> = {},
   register?: (id: string, element: Element) => void,
+  observedEntries: readonly PerformanceResourceTimingLike[] = [],
 ): PageExtraction {
   const active = { ...LIMITS, ...limits };
   const elements = [...doc.querySelectorAll('script')].filter((element) => isJsonLdScriptElement(element));
@@ -18,6 +21,7 @@ export function collectJsonLd(
     extractedAt: new Date().toISOString(),
     scripts,
     snapshot: collectPage(doc, active, register),
+    assets: collectAssets(doc, { maxAssets: active.maxAssets, observedEntries }),
   };
 }
 

@@ -28,6 +28,8 @@ describe('DOM extraction', () => {
     expect(extraction.scripts[0]).toMatchObject({ index: 0, elementId: 'job-schema', parseStatus: 'ok' });
     expect(extraction.scripts[1]?.parseStatus).toBe('ok');
     expect(extraction.scripts[0]?.raw).toContain('JobPosting');
+    expect(extraction.assets).toBeDefined();
+    expect(extraction.assets?.entries).toEqual(expect.any(Array));
   });
 
   it('keeps invalid raw text and records truncation', () => {

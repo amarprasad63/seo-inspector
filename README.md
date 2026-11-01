@@ -1,6 +1,9 @@
 # SEO Inspector
 
-A Manifest V3 extension that audits the current page in the browser. It covers on-page metadata, keywords, headings, social tags, links, images, indexability signals, technical and accessibility hints, and JSON-LD structured data.
+**Rules & thresholds:** [https://github.com/amarprasad63/seo-inspector/blob/main/rules.md](https://github.com/amarprasad63/seo-inspector/blob/main/rules.md)  
+**Privacy:** [https://github.com/amarprasad63/seo-inspector/blob/main/privacy.md](https://github.com/amarprasad63/seo-inspector/blob/main/privacy.md)
+
+A Manifest V3 extension that audits the current page in the browser. It covers on-page metadata, keywords, headings, social tags, links, images, asset and performance inventory, indexability signals, technical and accessibility hints, and JSON-LD structured data.
 
 Nothing is uploaded. There is no SEO API, telemetry, or account. The score is an internal diagnostic, not a Google ranking score.
 
@@ -33,7 +36,7 @@ Reload the extension after each production build. Reload an already-open tab onc
 2. Click the toolbar icon. The popup shows one audit section at a time. The background is white. The moon button switches to dark mode, and that choice is remembered on this device.
 3. **Open side panel** for the full section list.
 4. **Refresh** reads the page again. The content script also watches relevant DOM edits and pushes an update after a short debounce when the collected snapshot or JSON-LD actually changed.
-5. Use the section list for Overview, Metadata, Keywords, Headings, Social, Links, Images, Indexability, Structured data, Technical SEO, Content analysis, and Recommendations.
+5. Use the section list for Overview, Metadata, Keywords, Headings, Social, Links, Images, Assets & Performance, Indexability, Structured data, Technical SEO, Content analysis, and Recommendations.
 6. **Highlight** scrolls to a heading, link, or image and draws an outline. It does not run page script.
 7. **Export JSON** downloads the raw JSON-LD, parsed data, audit findings, score breakdown, and checks that could not be evaluated. **Export text** downloads a plain-language report.
 
@@ -50,7 +53,7 @@ Restricted pages (`chrome://`, `edge://`, `about:`, the Chrome Web Store, and si
 | `sidePanel` | Opens the persistent audit beside the page. |
 | `storage` | Optionally remembers the primary keyword, secondary keywords, and brand on this device when **Remember on this device** is checked. Unchecking it deletes that saved value. |
 
-The content script sends a bounded snapshot: URL, title, meta and link tags, headings, a capped image and anchor inventory, landmark and form counts, and visible text up to the configured character limit. It also sends JSON-LD script text. It does not send the full HTML document.
+The content script sends a bounded snapshot: URL, title, meta and link tags, headings, a capped image and anchor inventory, landmark and form counts, visible text up to the configured character limit, and a capped Assets & Performance inventory from the Performance Resource Timing API plus DOM discovery. It also sends JSON-LD script text. It does not send the full HTML document.
 
 ## Privacy
 
@@ -67,6 +70,8 @@ The store policy is [`privacy.md`](privacy.md).
 Limits live in `src/shared/limits.ts`. When a list or text extract is capped, the audit says so. Omitted items are not marked as passed.
 
 ## Audit methodology
+
+Full rule catalog (SEO score deductions, audit findings, and Assets & Performance thresholds): [rules.md](https://github.com/amarprasad63/seo-inspector/blob/main/rules.md).
 
 Findings use four severities:
 
@@ -140,21 +145,67 @@ Structured data still uses the original parser and rule modules. Findings are al
 
 The [Google Rich Results Test](https://search.google.com/test/rich-results) is linked from the validation panel. It is not called.
 
+## Assets & Performance
+
+The **Assets & Performance** section inventories resources for the current page using:
+
+1. `performance.getEntriesByType('resource')` / `PerformanceResourceTiming`
+2. A `PerformanceObserver` buffer for dynamically loaded resources
+3. DOM discovery for `img`, `picture`/`source`, `script[src]`, stylesheets, preload links, video/audio, and related URLs
+
+DOM discovery and network timing are kept distinct. A URL found only in the DOM is not reported as successfully downloaded.
+
+### Metrics
+
+| Field | Meaning |
+| --- | --- |
+| Transfer size | Bytes transferred over the network when the browser exposes them |
+| Encoded body size | Compressed response body size when exposed |
+| Decoded body size | Uncompressed body size when exposed |
+| Duration / start time | Resource timing relative to navigation start |
+| Effective size | Transfer size when available, otherwise encoded body size |
+| Severity | `critical`, `warning`, `ok`, or `unknown` (requested but size hidden) |
+
+Unavailable sizes are shown as **Unavailable**, not `0 B`. Cross-origin responses often hide byte sizes unless the server sends `Timing-Allow-Origin`.
+
+### Default size heuristics
+
+These are configurable starting points, not universal performance standards:
+
+| Asset type | Warning | Critical |
+| --- | ---: | ---: |
+| Images | > 200 KB | > 500 KB |
+| JavaScript | > 100 KB | > 300 KB |
+| CSS | > 50 KB | > 150 KB |
+| Fonts | > 100 KB | > 200 KB |
+| Videos | > 2 MB | > 5 MB |
+
+XHR/Fetch and other resources show size when available but do not use those thresholds yet. Recommendations also cover slow loads, potentially render-blocking scripts/stylesheets (from DOM attributes and placement, not file extension alone), oversized image dimensions vs rendered size, missing width/height, lazy-loading hints (not recommended for likely above-the-fold images), third-party hosts, and redundant font variants. The analyzer does not claim JavaScript or CSS is unused.
+
+The inventory table supports search, type and severity filters, size/duration sorting, detail expansion, open-in-new-tab, and CSV export.
+
+### How to test Assets & Performance
+
+1. Build and load `dist/`, then open a simple static page, an image-heavy page, a page with large JS bundles, multiple CSS files, third-party fonts/scripts, lazy-loaded images, dynamically injected scripts, a revisited/cached page, and a page with many cross-origin assets.
+2. Confirm category counts, deduplication, unavailable vs zero-byte handling, warning thresholds, filters/sorting, and CSV contents.
+3. Confirm existing SEO sections still work after a refresh.
+
 ## Architecture
 
 ```text
 content script
-  collect JSON-LD + page snapshot
+  collect JSON-LD + page snapshot + asset inventory
   debounce mutations, publish only when the signature changes
         ↓ chrome.runtime message
 popup / side panel
   JSON-LD analysis (worker when the scripts are large)
   SEO rules on the snapshot (pure functions, no network)
+  asset analysis on the collected inventory (pure functions, no network)
         ↓
-sections, score, JSON export, text report
+sections, score, JSON export, text report, assets CSV
 ```
 
-Extraction, rules, and React UI are separate. `src/seo/` does not render HTML. `src/validation/` is unchanged as the JSON-LD engine. `src/content/collect-page.ts` only collects evidence.
+Extraction, rules, and React UI are separate. `src/seo/` does not render HTML. `src/validation/` is unchanged as the JSON-LD engine. `src/assets/` collects and analyzes resource metrics. `src/content/collect-page.ts` only collects on-page SEO evidence.
 
 Popup and side panel render the same `App` with a `mode` prop.
 
@@ -180,11 +231,12 @@ Vitest covers JSON-LD parsing and validation, metadata, keywords, Open Graph and
 ## Known limitations
 
 - One page only. No crawl, no site-wide duplicate detection, no robots.txt, no redirect chain, no response headers.
-- Links are not fetched, so none are reported as broken. Images are not downloaded, so none are reported as large in bytes.
+- Links are not fetched, so none are reported as broken. Image **file** bytes are not downloaded by the extension; Assets & Performance uses Performance Resource Timing when the browser exposes sizes.
 - `X-Robots-Tag` is unavailable. A `noindex` meta tag is a directive, not proof the URL is absent from the index.
 - Hidden detection uses the `hidden` attribute, `aria-hidden`, inline style, and computed `display` / `visibility`. It can miss headings hidden only by a class animation.
 - Viewport position for lazy images is unknown when layout boxes are empty.
 - Core Web Vitals are not measured. Accessibility checks are not a WCAG audit.
+- Asset byte sizes for many cross-origin resources stay unavailable. Cached responses may report `transferSize` 0 even when the decoded body is large. Resources that loaded before the timing buffer was configured can be missing. The inventory is capped (`maxAssets`).
 - Content quality, expertise, originality, and search intent are not judged.
 - Shadow DOM and iframes are not scanned.
 - The social preview does not execute markup from the page. Image dimensions that are not in meta tags stay unknown.
@@ -200,3 +252,4 @@ Vitest covers JSON-LD parsing and validation, metadata, keywords, Open Graph and
 - Remembering a keyword survives closing the popup, and clearing the checkbox removes it.
 - A `chrome://` tab explains that the page cannot be inspected.
 - The network panel shows no analytics or SEO API calls while you inspect a page.
+- Assets & Performance lists page resources, marks unavailable cross-origin sizes, and exports CSV locally.

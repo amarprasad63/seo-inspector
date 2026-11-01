@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { CopyButton } from '../CopyButton';
+import { AssetsPerformance } from '../assets/AssetsPerformance';
 import { RawJsonViewer } from '../RawJsonViewer';
 import { SchemaExplorer } from '../SchemaExplorer';
 import { SearchInput } from '../SearchInput';
@@ -126,6 +127,13 @@ export function AuditView({
         ) : null}
         {section === 'links' && snapshot ? <LinkTable anchors={snapshot.anchors} omitted={snapshot.caps.anchorsOmitted} onHighlight={onHighlight} /> : null}
         {section === 'images' && snapshot ? <ImageTable images={snapshot.images} omitted={snapshot.caps.imagesOmitted} onHighlight={onHighlight} /> : null}
+        {section === 'assets' ? (
+          extraction.assets ? (
+            <AssetsPerformance collection={extraction.assets} />
+          ) : (
+            <p className="empty-copy">This payload has no asset inventory. Refresh the page inspection to collect Performance API resources.</p>
+          )
+        ) : null}
         {section === 'content' ? (
           <section>
             <p>{audit.keywords.textSource}</p>
@@ -139,14 +147,14 @@ export function AuditView({
         {section === 'structured' ? (
           <Structured analysis={analysis} mode={mode} query={schemaQuery} tab={schemaTab} onQuery={setSchemaQuery} onTab={setSchemaTab} />
         ) : null}
-        {section !== 'overview' && section !== 'structured' ? (
+        {section !== 'overview' && section !== 'structured' && section !== 'assets' ? (
           <>
             <SeverityChips value={severity} onChange={setSeverity} />
             <FindingList findings={sectionFindings} onHighlight={onHighlight} contributions={contributions} />
             <Unavailable notes={audit.unavailable.filter((item) => section === 'recommendations' || item.category === sectionCategory(section) || (section === 'technical' && item.category === 'accessibility'))} />
           </>
         ) : null}
-        {!snapshot && section !== 'structured' && section !== 'overview' ? (
+        {!snapshot && section !== 'structured' && section !== 'overview' && section !== 'assets' ? (
           <p className="empty-copy">This payload has no on-page snapshot, so the check was not marked as passed.</p>
         ) : null}
       </div>
