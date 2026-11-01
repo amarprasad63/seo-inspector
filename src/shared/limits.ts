@@ -24,6 +24,7 @@ export interface Limits {
   maxContentChars: number;
   maxIds: number;
   maxParagraphs: number;
+  maxAssets: number;
 }
 
 export const LIMITS: Limits = {
@@ -67,4 +68,6 @@ export const LIMITS: Limits = {
   maxIds: 2_000,
   /** Paragraphs kept for repetition checks. */
   maxParagraphs: 200,
+  /** Resource timing + DOM asset inventory cap. */
+  maxAssets: 500,
 };

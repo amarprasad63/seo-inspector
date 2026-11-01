@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { AppFooter } from './components/AppFooter';
 import { AuditView } from './components/audit/AuditView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Header } from './components/Header';
@@ -106,51 +107,59 @@ export function App({ mode }: { mode: 'popup' | 'sidepanel' }) {
           theme={theme}
           onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
           onOpenSidePanel={() => {
-            void inspection.openSidePanel().catch((error: unknown) => {
-              setNotice(error instanceof Error ? error.message : 'The side panel could not be opened.');
-            });
+            void inspection
+              .openSidePanel()
+              .then(() => {
+                if (mode === 'popup') window.close();
+              })
+              .catch((error: unknown) => {
+                setNotice(error instanceof Error ? error.message : 'The side panel could not be opened.');
+              });
           }}
         />
-        {inspection.phase === 'loading' ? <StatusCard title="Reading this page" detail={inspection.detail} /> : null}
-        {inspection.phase === 'restricted' ? <StatusCard title="This page can't be inspected" detail={inspection.detail} /> : null}
-        {inspection.phase === 'error' ? <StatusCard title="Inspector unavailable" detail={inspection.detail} /> : null}
-        {inspection.phase === 'ready' && failure ? <StatusCard title="Analysis failed" detail={failure} /> : null}
-        {inspection.phase === 'ready' && !failure && !analysis ? (
-          <StatusCard title="Analyzing this page" detail="Large JSON-LD is parsed in a worker. On-page checks use the collected snapshot." />
-        ) : null}
-        {inspection.phase === 'ready' && analysis && audit && inspection.extraction ? (
-          <>
-            {mode === 'popup' ? (
-              <p className="banner">The popup shows one section at a time. Open the side panel for the full audit.</p>
-            ) : null}
-            {analysis.scripts.some((script) => script.truncated) ? (
-              <p className="banner">
-                A JSON-LD script exceeded the retention limit. The report keeps the retained prefix, the original length, and a
-                truncation flag.
-              </p>
-            ) : null}
-            <AuditView
-              mode={mode}
-              extraction={inspection.extraction}
-              analysis={analysis}
-              audit={audit}
-              targets={targets}
-              disabled={disabled}
-              onTargets={setTargets}
-              onToggleRule={(ruleId) =>
-                setDisabled((current) => {
-                  const next = new Set(current);
-                  if (next.has(ruleId)) next.delete(ruleId);
-                  else next.add(ruleId);
-                  return next;
-                })
-              }
-              onHighlight={(highlightId) => {
-                void highlight(highlightId);
-              }}
-            />
-          </>
-        ) : null}
+        <div className="app-body">
+          {inspection.phase === 'loading' ? <StatusCard title="Reading this page" detail={inspection.detail} /> : null}
+          {inspection.phase === 'restricted' ? <StatusCard title="This page can't be inspected" detail={inspection.detail} /> : null}
+          {inspection.phase === 'error' ? <StatusCard title="Inspector unavailable" detail={inspection.detail} /> : null}
+          {inspection.phase === 'ready' && failure ? <StatusCard title="Analysis failed" detail={failure} /> : null}
+          {inspection.phase === 'ready' && !failure && !analysis ? (
+            <StatusCard title="Analyzing this page" detail="Large JSON-LD is parsed in a worker. On-page checks use the collected snapshot." />
+          ) : null}
+          {inspection.phase === 'ready' && analysis && audit && inspection.extraction ? (
+            <>
+              {mode === 'popup' ? (
+                <p className="banner">The popup shows one section at a time. Open the side panel for the full audit.</p>
+              ) : null}
+              {analysis.scripts.some((script) => script.truncated) ? (
+                <p className="banner">
+                  A JSON-LD script exceeded the retention limit. The report keeps the retained prefix, the original length, and a
+                  truncation flag.
+                </p>
+              ) : null}
+              <AuditView
+                mode={mode}
+                extraction={inspection.extraction}
+                analysis={analysis}
+                audit={audit}
+                targets={targets}
+                disabled={disabled}
+                onTargets={setTargets}
+                onToggleRule={(ruleId) =>
+                  setDisabled((current) => {
+                    const next = new Set(current);
+                    if (next.has(ruleId)) next.delete(ruleId);
+                    else next.add(ruleId);
+                    return next;
+                  })
+                }
+                onHighlight={(highlightId) => {
+                  void highlight(highlightId);
+                }}
+              />
+            </>
+          ) : null}
+        </div>
+        <AppFooter />
       </div>
     </ErrorBoundary>
   );
