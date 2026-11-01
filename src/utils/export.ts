@@ -5,7 +5,7 @@ import type { PageExtraction } from '../shared/types';
 import type { Analysis } from '../validation/engine';
 
 export const GENERATOR_NAME = 'SEO Inspector';
-export const GENERATOR_VERSION = '1.1.0';
+export const GENERATOR_VERSION = '1.2.0';
 
 export interface ExportScript {
   index: number;

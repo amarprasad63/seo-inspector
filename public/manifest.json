@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SEO Inspector",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Inspect on-page SEO and JSON-LD structured data on the current page. All processing stays in the browser.",
   "minimum_chrome_version": "116",
   "action": {
